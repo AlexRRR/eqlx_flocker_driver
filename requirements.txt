@@ -1,0 +1,5 @@
+ecdsa==0.13
+eventlet==0.18.4
+gevent==1.1rc4
+greenlet==0.4.9
+paramiko==1.16.0
