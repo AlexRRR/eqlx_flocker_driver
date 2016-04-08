@@ -2,7 +2,7 @@
 from uuid import uuid4
 import pdb
 import imp
-
+import os
 
 from flocker.node.agents.test.test_blockdevice import make_iblockdeviceapi_tests
 
@@ -19,10 +19,12 @@ EQLX_USER = u'{0}'.format(os.environ['EQLX_USER'])
 EQLX_PASSWORD = u'{0}'.format(os.environ['EQLX_PASSWORD'])
 
 def api_factory(test_case):
-    return EqlxBlockDeviceAPI(cluster_id= unicode(uuid4()),
+    eqlx = EqlxBlockDeviceAPI(cluster_id= unicode(uuid4()),
                                 eqlx_ip=EQLX_IP,
                                 username=EQLX_USER,
                                 password=EQLX_PASSWORD)
+    test_case.addCleanup(destroy_volumes, eqlx)
+    return eqlx
 
 def destroy_volumes(api):
     """
