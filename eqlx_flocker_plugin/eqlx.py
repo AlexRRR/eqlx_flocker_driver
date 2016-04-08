@@ -228,12 +228,12 @@ class Eqlx(object):
                 volumes.append(current_vol)
                 print("appending: %s:" % previous[0])
             else:
-               print("skipping: %s" % previous[0])
+               #print("skipping: %s" % previous[0])
+               None
 
         for v in volume_list[3:]:
             try:
                 segments = v.split()
-                print(segments)
                 if (len(segments) == VOL_SEGMENT_SIZE and first_segment):
                     previous = segments
                     first_segment = False
@@ -296,7 +296,6 @@ class EqlxBlockDeviceAPI(object):
                         size=size,
                         dataset_id=dataset_id)
         command = "vol create flk-%s %sGB %s" % (dataset_id, size, "thin-provision")
-        print(command)
         self.eqlx_con.send_command(command, timeout=10)
         return volume
 
