@@ -145,6 +145,10 @@ class Eqlx(object):
         chan.send(cmd + '\r')
         self.get_output(chan,ending_str=None)
 
+    def iscsi_login(self):
+    	 output = check_output([b"/usr/bi/iscsiadm --login","-m","node","--login"])
+	
+
     def _extract_value(self, info_string, expect, index):
         data = info_string[index]
         tokenized = data.split(":")
@@ -322,8 +326,9 @@ class EqlxBlockDeviceAPI(object):
         if current_vol.attached_to != None:
             raise AlreadyAttachedVolume('attached to %s' % current_vol.attach_to)
         self.eqlx_con.allow_volume(blockdevice_id,attach_to)
+        self.iscsi_login()
         current_vol.attached_to = u"{0}".format(attach_to),
-        return current_vol;
+        return current_vol
 
 
 
