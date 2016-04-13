@@ -18,6 +18,7 @@ import uuid
 from subprocess import check_output
 from eliot import Message
 from bitmath import Byte, GiB
+from twisted.python.filepath import FilePath
 
 class VolumeBackendAPIException(Exception):
     """
@@ -145,13 +146,15 @@ class Eqlx(object):
         chan.send(cmd + '\r')
         self.get_output(chan,ending_str=None)
 
-    def iscsi_login(self):
-    	 output = check_output([b"/usr/bi/iscsiadm --login","-m","node","--login"])
+    def iscsi_login(self, blockdevice_id):
+         check_output([b"/usr/bin/iscsiadm","-m","discoverydb","-t","sendtargets", "-p", self.eqlx_ip, "--discover"])
+         iscsi_name = self.iscsi_name_from_dataset_id(blockdevice_id) 
+	 output = check_output([b"/usr/bin/iscsiadm","-m","node","--targetname", iscsi_name, "--login"])
 	
 
     def _extract_value(self, info_string, expect, index):
         data = info_string[index]
-        tokenized = data.split(":")
+        tokenized = data.split(": ")
         if tokenized[0] == expect:
             return ''.join(tokenized[1:]).strip()
         else:
@@ -202,7 +205,7 @@ class Eqlx(object):
                                        attached_to=attached_to,
                                        blockdevice_id=blockdevice_id,
                                        dataset_id=dataset_id)
-            return output
+            return volume
         except VolumeBackendAPIException as exc:
             raise UnknownVolume(blockdevice_id)
 
@@ -275,9 +278,9 @@ class EqlxBlockDeviceAPI(object):
     """
     Interfaces with Equallogic Block devices
     """
-    def __init__ (self, cluster_id, eqlx_ip, username, password):
+    def __init__ (self, cluster_id, eqlx_ip, compute_instance_id, username, password):
         self._cluster_id = cluster_id
-        self._compute_instance_id = u'{0}'.format(socket.gethostname())
+        self._compute_instance_id = u'{0}'.format(compute_instance_id)
         self.eqlx_con = Eqlx("EQL-INX", eqlx_ip, username, password)
 
     def allocation_unit(self):
@@ -326,8 +329,8 @@ class EqlxBlockDeviceAPI(object):
         if current_vol.attached_to != None:
             raise AlreadyAttachedVolume('attached to %s' % current_vol.attach_to)
         self.eqlx_con.allow_volume(blockdevice_id,attach_to)
-        self.iscsi_login()
-        current_vol.attached_to = u"{0}".format(attach_to),
+        self.eqlx_con.iscsi_login(blockdevice_id)
+        current_vol.set(attached_to=unicode(attach_to))
         return current_vol
 
 
@@ -392,3 +395,4 @@ class EqlxBlockDeviceAPI(object):
          """
          Use for testing only
          """
+         print("goooo")

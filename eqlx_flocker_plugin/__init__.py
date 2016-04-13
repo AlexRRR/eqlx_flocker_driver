@@ -6,7 +6,8 @@ def api_factory(cluster_id, **kwargs):
                         cluster_id=cluster_id,
                         username=kwargs[u"username"],
                         password=kwargs[u"password"],
-                        eqlx_ip=kwargs["eqlx_ip"])
+                        eqlx_ip=kwargs["eqlx_ip"],
+                        compute_instance_id=kwargs[u'compute_instance_id'])
 
 FLOCKER_BACKEND = BackendDescription(
     name=u'eqlx_flocker_plugin',
