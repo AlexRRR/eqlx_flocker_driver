@@ -152,6 +152,11 @@ class Eqlx(object):
 	 output = check_output([b"/usr/bin/iscsiadm","-m","node","--targetname", iscsi_name, "--login"])
 	
 
+    def iscsi_logout(self, blockdevice_id):
+        iscsi_name = self.iscsi_name_from_dataset_id(blockdevice_id)
+	output = check_output([b"/usr/bin/iscsiadm","-m","node","--targetname", iscsi_name, "--logout"])
+
+
     def _extract_value(self, info_string, expect, index):
         data = info_string[index]
         tokenized = data.split(": ")
@@ -201,6 +206,7 @@ class Eqlx(object):
             attached_to = None
             if int(connection) > 0:
                 attached_to = re.findall( r'[0-9]+(?:\.[0-9]+){3}', output[58] ).pop()
+                attached_to = unicode(attached_to, 'utf-8')
             volume = BlockDeviceVolume(size=size,
                                        attached_to=attached_to,
                                        blockdevice_id=blockdevice_id,
@@ -327,7 +333,7 @@ class EqlxBlockDeviceAPI(object):
         """
         current_vol = self.eqlx_con.volume_info(blockdevice_id)
         if current_vol.attached_to != None:
-            raise AlreadyAttachedVolume('attached to %s' % current_vol.attach_to)
+            raise AlreadyAttachedVolume('attached to %s' % current_vol.attached_to)
         self.eqlx_con.allow_volume(blockdevice_id,attach_to)
         self.eqlx_con.iscsi_login(blockdevice_id)
         current_vol.set(attached_to=unicode(attach_to))
@@ -395,4 +401,4 @@ class EqlxBlockDeviceAPI(object):
          """
          Use for testing only
          """
-         print("goooo")
+         self.eqlx_con.iscsi_logout(blockdevice_id)

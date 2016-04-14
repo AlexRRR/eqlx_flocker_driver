@@ -26,16 +26,17 @@ def api_factory(test_case):
                                 username=EQLX_USER,
                                 password=EQLX_PASSWORD,
                                 compute_instance_id=HOST_IP)
-    test_case.addCleanup(destroy_volumes, eqlx)
+    test_case.addCleanup(destroy_detach_volumes, eqlx)
     return eqlx
 
-def destroy_volumes(api):
+def destroy_detach_volumes(api):
     """
     Destroy all volumes created by API
     """
     volumes = api.list_volumes()
     for volume in volumes:
         print("would delete: %s" % volume.blockdevice_id)
+        api.detach_volume(volume.blockdevice_id)
         api.destroy_volume(volume.blockdevice_id)
 
 class EqlxBlockDeviceAPIInterfaceTests(
