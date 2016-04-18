@@ -15,7 +15,7 @@ import pdb
 import socket
 import re
 import uuid
-from subprocess import check_output
+from subprocess import check_output, CalledProcessError
 from eliot import Message
 from bitmath import Byte, GiB
 from twisted.python.filepath import FilePath
@@ -154,8 +154,13 @@ class Eqlx(object):
 
     def iscsi_logout(self, blockdevice_id):
         iscsi_name = self.iscsi_name_from_dataset_id(blockdevice_id)
-	output = check_output([b"/usr/bin/iscsiadm","-m","node","--targetname", iscsi_name, "--logout"])
-
+        try: 
+	    output = check_output([b"/usr/bin/iscsiadm","-m","node","--targetname", iscsi_name, "--logout"])
+        except CalledProcessError as exc:
+            if (exc.returncode == 21):
+	        print("21: no records/targets/sessions/portals found")
+            else:
+                raise VolumeBackendAPIException("iscsiadm error %s: %s" % exc.returncode, exc.cmd)
 
     def _extract_value(self, info_string, expect, index):
         data = info_string[index]
@@ -216,6 +221,31 @@ class Eqlx(object):
             raise UnknownVolume(blockdevice_id)
 
     @with_timeout
+    def fetch_connections(self, blockdevice_id, ending_str=None):
+        chan = self.ssh.invoke_shell()
+        self.get_output(chan)
+        attached_to = ''
+	try:
+            cmd = 'volume select %s' % blockdevice_id
+            chan.send(cmd + '\r')
+            self.get_output(chan,ending_str='volume_%s' % blockdevice_id)
+        except VolumeBackendAPIException as exc:
+            raise UnknownVolume()
+        cmd = 'show connections'
+        chan.send(cmd + '\r')
+        mycon = self.get_output(chan,ending_str='volume_%s' % blockdevice_id)
+        if (len(mycon) == 5):
+            attached_to = unicode(mycon[3].split()[0])
+        else:
+            raise VolumeBackendAPIException('more than one connection to volume')
+        cmd = 'exit'
+        chan.send(cmd + '\r')
+        self.get_output(chan,ending_str=None)
+        return attached_to
+        
+
+
+    @with_timeout
     def list_volumes(self):
         chan = self._cli_settings()
         cmd = 'volume show -volume'
@@ -227,17 +257,23 @@ class Eqlx(object):
         ending_str = '%s>' % (self.eqlx_id)
 
 
-        def blockdevice_from_segment(segment):
+
+
+        def blockdevice_from_segment(self, segment):
             blockdevice_id,size,snapshots,status,permission,connections,t = segment
             dataset_id = uuid.UUID("-".join(blockdevice_id.split("-")[1:]))
+            attach_to = None
+            if (int(connections) > 0): 
+                attach_to = self.fetch_connections(blockdevice_id)
+           
             return BlockDeviceVolume(size=int(re.findall(r'^\d+', size)[-1]),
-                                    attached_to=None,
+                                    attached_to=attach_to,
                                     dataset_id=dataset_id,
                                     blockdevice_id=u'{0}'.format(blockdevice_id))
 
-        def append_only_volumes_from_cluster(previous):
+        def append_only_volumes_from_cluster(self, previous):
             if (previous[0].startswith('flk')):
-                current_vol = blockdevice_from_segment(previous)
+                current_vol = blockdevice_from_segment(self, previous)
                 volumes.append(current_vol)
                 print("appending: %s:" % previous[0])
             else:
@@ -251,12 +287,12 @@ class Eqlx(object):
                     previous = segments
                     first_segment = False
                 elif (len(segments) == VOL_SEGMENT_SIZE):
-                    append_only_volumes_from_cluster(previous)
+                    append_only_volumes_from_cluster(self, previous)
                     previous = segments
                 elif (len(segments) == 1):
                     #ending line add last volume
                     if (ending_str in segments):
-                        append_only_volumes_from_cluster(previous)
+                        append_only_volumes_from_cluster(self, previous)
                     previous[0] = previous[0] + segments[0]
                     first_segment = False
             except ValueError as e:
@@ -336,8 +372,7 @@ class EqlxBlockDeviceAPI(object):
             raise AlreadyAttachedVolume('attached to %s' % current_vol.attached_to)
         self.eqlx_con.allow_volume(blockdevice_id,attach_to)
         self.eqlx_con.iscsi_login(blockdevice_id)
-        current_vol.set(attached_to=unicode(attach_to))
-        return current_vol
+        return current_vol.set(attached_to=attach_to)
 
 
 
